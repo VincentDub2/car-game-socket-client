@@ -1,6 +1,6 @@
 'use client'
 // src/components/Car.tsx
-import React from 'react';
+import React, {useState} from 'react';
 
 type CarProps = {
     id: string;
@@ -13,7 +13,7 @@ type CarProps = {
 
 const Car: React.FC<CarProps> = ({ x, y }) => {
     return (
-        <div style={{ position: 'absolute', left: `${x}px`, top: `${y}px` }}>
+        <div className="transition-all" style={{ position: 'absolute', left: `${x}px`, top: `${y}px` }}>
             {/* Ici, vous pouvez ajouter une image ou un style pour représenter la voiture */}
             🚗
         </div>

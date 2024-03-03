@@ -10,6 +10,8 @@ type CarType = {
     id: string;
     x: number;
     y: number;
+    width: number;
+    height: number;
     speed: number;
     direction: number;
     score: number;
@@ -18,9 +20,12 @@ type CarType = {
 type WallType = {
     x: number;
     y: number;
+    width: number;
+    height: number;
 };
 
 type CoinType = {
+    id: number;
     x: number;
     y: number;
     collected: boolean;
@@ -38,23 +43,49 @@ const GameBoard: React.FC = () => {
     // Cette logique sera ajoutée dans les prochaines étapes
     useEffect(() => {
         const handleGameData = (data: any) => {
-            // Vérifie si la réponse contient les informations nécessaires pour une voiture
-            if (data.cars && data.walls && data.coins) {
-                // Mise à jour de l'état avec les données reçues
-                setCars(data.cars);
+            console.log(data);
+            if (data.cars){
+                const dataCars = data.cars;
+                setMyCar(data.playerCar);
+                setCars(dataCars);
                 setWalls(data.walls);
                 setCoins(data.coins);
-                setMyCar(data.playerCar); // Remplacez par le nom de votre voiture (si nécessaire
-            } else if (data.carId && (data.newX !== undefined) && (data.newY !== undefined)) {
-                // Mise à jour de la position et du score d'une voiture spécifique
-                setCars((prevCars) => prevCars.map((car) => {
-                    if (car.id === data.carId) {
-                        return { ...car, x: data.newX, y: data.newY, score: data.newScore };
-                    }
-                    return car;
-                }));
+            }else if (data.eventType){
+                if (data.eventType === 'movement') {
+                    const newCar = {
+                        id: data.eventData.carId,
+                        x: data.eventData.newX,
+                        y: data.eventData.newY,
+                        speed: data.eventData.speed ?? 0,
+                        direction: data.eventData.direction ?? 0,
+                        height: data.eventData.height ?? 0,
+                        width: data.eventData.width ?? 0,
+                        score: data.newScore,
+                    };
+
+                    setCars(prevCars => {
+                        const newCars = prevCars.filter(car => car.id !== newCar.id);
+                        return [...newCars, newCar];
+                    });
+
+                } else if (data.eventType === 'coinCollection') {
+                    const newCoin = {
+                        id: data.eventData.id,
+                        x: data.eventData.x ?? 0,
+                        y: data.eventData.y ?? 0,
+                        collected: true,
+                    };
+                    setCoins(prevCoins => {
+                        const newCoins = prevCoins.filter(coin => coin.id !== newCoin.id);
+                        return [...newCoins, newCoin];
+                    });
+
+                }
+            }else if (data.error){
+                console.log(data.error);
+            }else {
+                console.log("data non recon",data);
             }
-            // Mettez ici à jour d'autres éléments du jeu si nécessaire
         };
 
         webSocketService.connect('ws://localhost:8080/game', handleGameData);
@@ -65,6 +96,13 @@ const GameBoard: React.FC = () => {
     }, []);
 
     // Dans GameBoard.tsx
+    useEffect(() => {
+        console.log("cars updated:", cars);
+    }, [cars]); // Cette fonction s'exécutera après que `cars` a été mis à jour.
+
+    useEffect(() => {
+        console.log("Coin updated:", coins);
+    }, [coins]); // Cette fonction s'exécutera après que `cars` a été mis à jour.
 
     useEffect(() => {
         const handleKeyPress = (event: KeyboardEvent) => {
@@ -85,7 +123,6 @@ const GameBoard: React.FC = () => {
                 default:
                     return; // Quitte la fonction si une autre touche est pressée
             }
-            // Supposons que "playerCarId" soit l'ID de la voiture du joueur
             const playerCarId = myCar?.id; // Adaptez selon comment vous déterminez l'ID de la voiture du joueur
             if (playerCarId) {
                 console.log(`${playerCarId}:${direction}`)

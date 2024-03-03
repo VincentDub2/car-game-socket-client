@@ -9,6 +9,9 @@ type CoinProps = {
 };
 
 const Coin: React.FC<CoinProps> = ({ x, y, collected }) => {
+    if (collected) {
+        return null;
+    }
     return (
         <div style={{ position: 'absolute', left: `${x}px`, top: `${y}px`, color: collected ? 'gray' : 'gold' }}>
             {/* Ici, vous pouvez ajouter une icône ou un style pour représenter la pièce */}
