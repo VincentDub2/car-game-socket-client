@@ -1,8 +1,9 @@
 'use client'
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Car from './Car';
 import Wall from './Wall';
 import Coin from './Coin';
+import Mushrooom from './Mushroom';
 import {webSocketService} from "@/utils/WebSocketService";
 
 // Définition des types pour vos données
@@ -38,6 +39,32 @@ const GameBoard: React.FC = () => {
     const [cars, setCars] = useState<CarType[]>([]);
     const [walls, setWalls] = useState<WallType[]>([]);
     const [coins, setCoins] = useState<CoinType[]>([]);
+    const [mushrooms, setMushrooms] = useState<CoinType[]>([]);
+    const keyPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const keyPressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const [score, setScore] = useState<number>(0);
+
+
+    const startSendingMessages = (direction: number) => {
+        if (keyPressIntervalRef.current !== null) {
+            return;
+        }
+
+        const playerCarId = myCar?.id; // Adaptez selon comment vous déterminez l'ID de la voiture du joueur
+        if (playerCarId) {
+            keyPressIntervalRef.current = setInterval(() => {
+                console.log(`${playerCarId}:${direction}`);
+                webSocketService.sendMessage(`${playerCarId}:${direction}`);
+            }, 150);
+        }
+    };
+
+    const stopSendingMessages = () => {
+        if (keyPressIntervalRef.current !== null) {
+            clearInterval(keyPressIntervalRef.current);
+            keyPressIntervalRef.current = null;
+        }
+    };
 
     // Ici, vous initialiserez la connexion WebSocket et mettrez à jour l'état avec les données reçues
     // Cette logique sera ajoutée dans les prochaines étapes
@@ -50,8 +77,11 @@ const GameBoard: React.FC = () => {
                 setCars(dataCars);
                 setWalls(data.walls);
                 setCoins(data.coins);
+                setMushrooms(data.mushrooms);
             }else if (data.eventType){
                 if (data.eventType === 'movement') {
+                    console.log("Movement",data.eventData);
+                    setScore(data.eventData.newScore);
                     const newCar = {
                         id: data.eventData.carId,
                         x: data.eventData.newX,
@@ -60,7 +90,7 @@ const GameBoard: React.FC = () => {
                         direction: data.eventData.direction ?? 0,
                         height: data.eventData.height ?? 0,
                         width: data.eventData.width ?? 0,
-                        score: data.newScore,
+                        score: data.eventData.newScore,
                     };
 
                     setCars(prevCars => {
@@ -71,8 +101,8 @@ const GameBoard: React.FC = () => {
                 } else if (data.eventType === 'coinCollection') {
                     const newCoin = {
                         id: data.eventData.id,
-                        x: data.eventData.x ?? 0,
-                        y: data.eventData.y ?? 0,
+                        x: data.eventData.x,
+                        y: data.eventData.y,
                         collected: true,
                     };
                     setCoins(prevCoins => {
@@ -80,6 +110,39 @@ const GameBoard: React.FC = () => {
                         return [...newCoins, newCoin];
                     });
 
+                } else if (data.eventType === 'coinAdd'){
+                    const newCoin = {
+                        id: data.eventData.id,
+                        x: data.eventData.x,
+                        y: data.eventData.y,
+                        collected: false,
+                    };
+                    setCoins(prevCoins => {
+                        const newCoins = prevCoins.filter(coin => coin.id !== newCoin.id);
+                        return [...newCoins, newCoin];
+                    });
+                }else if (data.eventType === 'MushroomAddEvent'){
+                    const newMushroom = {
+                        id: data.eventData.id,
+                        x: data.eventData.x ?? 0,
+                        y: data.eventData.y ?? 0,
+                        collected: false,
+                    };
+                    setMushrooms(prevMushrooms => {
+                        const newMushrooms = prevMushrooms.filter(mushroom => mushroom.id !== newMushroom.id);
+                        return [...newMushrooms, newMushroom];
+                    });
+                }else if (data.eventType === 'mushroomCollection'){
+                    const newMushroom = {
+                        id: data.eventData.id,
+                        x: data.eventData.x ?? 0,
+                        y: data.eventData.y ?? 0,
+                        collected: true,
+                    };
+                    setMushrooms(prevMushrooms => {
+                        const newMushrooms = prevMushrooms.filter(mushroom => mushroom.id !== newMushroom.id);
+                        return [...newMushrooms, newMushroom];
+                    });
                 }
             }else if (data.error){
                 console.log(data.error);
@@ -88,7 +151,8 @@ const GameBoard: React.FC = () => {
             }
         };
 
-        webSocketService.connect('ws://localhost:8080/game', handleGameData);
+        //webSocketService.connect("wss://socket-car-game-jvm-1.onrender.com/game", handleGameData);
+        webSocketService.connect("ws://localhost:8080/game", handleGameData);
 
         return () => {
             webSocketService.disconnect();
@@ -105,7 +169,7 @@ const GameBoard: React.FC = () => {
     }, [coins]); // Cette fonction s'exécutera après que `cars` a été mis à jour.
 
     useEffect(() => {
-        const handleKeyPress = (event: KeyboardEvent) => {
+        const handleKeyDown = (event: KeyboardEvent) => {
             let direction;
             switch (event.key) {
                 case 'ArrowUp':
@@ -123,24 +187,39 @@ const GameBoard: React.FC = () => {
                 default:
                     return; // Quitte la fonction si une autre touche est pressée
             }
-            const playerCarId = myCar?.id; // Adaptez selon comment vous déterminez l'ID de la voiture du joueur
-            if (playerCarId) {
-                console.log(`${playerCarId}:${direction}`)
-                webSocketService.sendMessage(`${playerCarId}:${direction}`);
+
+            startSendingMessages(direction);
+        };
+
+        const handleKeyUp = (event: KeyboardEvent) => {
+            switch (event.key) {
+                case 'ArrowUp':
+                case 'ArrowRight':
+                case 'ArrowDown':
+                case 'ArrowLeft':
+                    stopSendingMessages();
+                    break;
+                default:
+                    return; // Quitte la fonction si une autre touche est relâchée
             }
         };
 
-        window.addEventListener('keydown', handleKeyPress);
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
 
         return () => {
-            window.removeEventListener('keydown', handleKeyPress);
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
         };
-    }, [cars]); // Assurez-vous d'ajouter des dépendances si nécessaire
+    }, [myCar]);
 
 
     return (
-        <div>
-            <h2>Game Board</h2>
+        <div className="relative m-2 bg-gray-200 " style={{width: '1000px', height: '800px'}}>
+            {/* Score en haut à droite avec Tailwind CSS */}
+            <div className="absolute right-0 top-0 m-4 p-2 bg-white bg-opacity-75 rounded shadow-lg text-lg font-bold">
+                Score: {score}
+            </div>
             <div>
                 {cars.map((car) => (
                     <Car key={car.id} {...car} />
@@ -150,6 +229,9 @@ const GameBoard: React.FC = () => {
                 ))}
                 {coins.map((coin, index) => (
                     <Coin key={index} {...coin} />
+                ))}
+                {mushrooms.map((mushroom, index) => (
+                    <Mushrooom key={index} {...mushroom} />
                 ))}
             </div>
         </div>

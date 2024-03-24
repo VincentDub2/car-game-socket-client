@@ -3,6 +3,12 @@ This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next
 ## Getting Started
 
 First, run the development server:
+    
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 -t vincentdub/nextjs-app:latest . --push
+```
+    
+    Then, run the development server:
 
 ```bash
 npm run dev
